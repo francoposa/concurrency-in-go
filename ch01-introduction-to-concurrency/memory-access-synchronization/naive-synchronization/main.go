@@ -1,1 +1,0 @@
-package naive_synchronization

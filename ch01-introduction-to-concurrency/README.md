@@ -40,8 +40,8 @@ Take this basic example:
 
 ```go
 func main() {
-    var x int // initializes to 0
-    go func() { x++ }() // gets scheduled to run concurrently with the remaining code
+    var x int
+    go func() { x++ }()
     if x == 0 {
         fmt.Printf("x: %d\n", x)
     }
@@ -217,3 +217,74 @@ The order of operations is still nondeterministic.
 Further, memory access synchronization via locking has performance ramifications.
 While the data is locked, other processes that need access to the data cannot proceed.
 If programs are locking very often, locking longer than necessary, or many processes are competing for the lock, performance can deteriorate rapidly.
+
+## Deadlocks, Livelocks, and Starvation
+
+The previous sections discuss strategies to manage the order of execution of concurrent operations.
+However, those strategies are not enough to avoid deadlocks, livelocks, and starvation.
+These are conditions under which your program may be unable to proceed to due to mismanagement of inter-process dependencies and shared resources.
+
+### Deadlocks
+
+**Deadlocks** occur when all concurrent processes are waiting on each other.
+A program in a deadlocked state wil be unable to proceed without outside intervention.
+
+#### The Coffman Conditions of Deadlocks
+
+The four conditions for a deadlocked program were defined by Edgar Coffman in 1971.
+The conditions are as follows:
+
+**1. Mutual Exclusion:** a concurrent process holds exclusive rights to a resource
+
+**2. Wait For Condition:** a concurrent process is simultaneously holding a resource and waiting for an additional resource
+
+**3. No Preemption:** a resource held by a concurrent process can only be released by that same process; no other process can pre-empt the rights to the resource
+
+**4. Circular Wait:** a concurrent process p1 is waiting on a chain of other concurrent processes, p2, which are in turn waiting on p1
+
+We can construct a simple program which will meet all of these conditions:
+
+```go
+func main() {
+	type value struct {
+		mu    sync.Mutex
+		value int
+	}
+
+	var wg sync.WaitGroup
+	printSum := func(v1, v2 *value) {
+		defer wg.Done()
+		v1.mu.Lock() // attempt to claim a shared resource
+		defer v1.mu.Unlock()
+
+		// simulate doing work with the resource
+		// this is not a perfect deadlock, technically this whole process could
+		// complete before another process attempts to claim the same resources
+		time.Sleep(2 * time.Second)
+
+		v2.mu.Lock() // attempt to claim a second shared resource before releasing the first
+		defer v2.mu.Unlock()
+
+		fmt.Printf("sum: %d\n", v1.value+v2.value)
+	}
+
+	var a, b value
+	wg.Add(2)
+	go printSum(&a, &b) // lock a then attempt to lock b, without releasing a first
+	go printSum(&b, &a) // lock b then attempt to lock a, without releasing b first
+	wg.Wait()
+}
+```
+
+Understanding the four Coffman Conditions helps us *avoid* deadlocks, because long as not all conditons are satisfied, the program will not deadlock.
+Unfortunately, concurrency conditions can be hard to reason about just from looking at a particular snippet of code.
+
+### Livelocks
+
+**Livelocks** occur when all concurrent processes are actively performing concurrent operations, but the operations do not move the state of the program forward.
+
+As an example, think about when you attempt to walk through a narrow doorway when someone is approaching from the other side.
+You step to the right to go through, but they also step to the right.
+You step to the left to get around them, they step to the left to go around you.
+This dance can continue forever - both participants are constantly moving, but no one has managed to pass through the doorway.
+The overall state of the world has not changed, despite the efforts of the participants.
