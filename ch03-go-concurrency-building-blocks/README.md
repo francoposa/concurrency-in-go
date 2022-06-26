@@ -86,3 +86,18 @@ We are hoping to give the other goroutine a chance to complete before the progra
 
 We must introduce a join point in order to guarantee the correctness of our program and remove the race condition.
 There are several ways to do this in Go, but our most basic way is to use the `sync` package's `WaitGroup`.
+
+Without worrying (yet) about exactly how `sync.WaitGroup` operates, here is the correct version of the example:
+
+```go
+var wg0 sync.WaitGroup
+helloWorld := func() {
+    defer wg0.Done()
+    fmt.Println("Hello, World")
+}
+wg0.Add(1)
+go helloWorld()
+wg0.Wait() // this is the join point
+```
+
+### The `sync` Package
