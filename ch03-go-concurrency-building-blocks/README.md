@@ -101,3 +101,42 @@ wg0.Wait() // this is the join point
 ```
 
 ### The `sync` Package
+
+The `sync` package contains concurrency primitives for low-level memory access synchronization.
+Some languages primarily use these memory-access-synchronization constructs to handle concurrency.
+Go has additionally built a new set of concurrency primitives on top of the memory access primitives, but we will first learn these lower-level building blocks.
+
+#### WaitGroup
+
+`WaitGroup` is a simple way to wait for a set of concurrent operations to complete.
+`WaitGroup` is limited; use it when you either do not care about the results of the operations or have another way to collect the results.
+
+In these simple examples, printing to `stdout` is our other way of collecting results.
+
+```go
+var wg0 sync.WaitGroup
+wg0.Add(1)
+go func() {
+    defer wg0.Done()
+    fmt.Println("goroutine 1 sleeping...")
+    time.Sleep(1)
+}()
+wg0.Add(1)
+go func() {
+    defer wg0.Done()
+    fmt.Println("goroutine 2 sleeping...")
+    time.Sleep(2)
+}()
+
+wg0.Wait()
+fmt.Println("goroutines complete")
+```
+
+`WaitGroup` can be thought of as a concurrent-safe counter:
+* `Add` increments the counter
+* `Done` decrements the counter
+* `Wait` blocks until the counter is zero
+
+Note that calls to `Add` are done outside the goroutines in order to avoid race conditions.
+Otherwise, because we do not know when goroutines will get scheduled, we could reach the `Wait` call with a counter of zero before any of the `Add` calls execute.
+    
